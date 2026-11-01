@@ -16,6 +16,8 @@ from zoneinfo import ZoneInfo
 
 TOPIC = os.environ["NTFY_TOPIC"]
 PAGE = "https://grobie.github.io/drachenwetter/"   # öffnet sich beim Tippen auf die Nachricht
+IMAGE = PAGE + "notify.png"                        # Vorschaubild in der Benachrichtigung
+ICON = PAGE + "icon-192.png"
 BERLIN = ZoneInfo("Europe/Berlin")
 
 # Schwellen in km/h (10-Minuten-Mittelwind) – wie in App und Webseite
@@ -29,6 +31,11 @@ FORECAST = (
     "&models=icon_seamless&wind_speed_unit=kmh&timezone=Europe%2FBerlin&forecast_days=4"
 )
 WEEKDAY = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+
+
+def line(win):
+    start, end, wind = win
+    return f"{start}–{end} Uhr · bis {wind} km/h"
 
 
 def get_json(url):
@@ -60,9 +67,12 @@ def best_window(hourly, day, not_before=None):
     return None
 
 
-def send(title, message, tags=("kite",)):
-    body = json.dumps({"topic": TOPIC, "title": title, "message": message,
-                       "tags": list(tags), "click": PAGE}).encode()
+def send(title, message, image=True):
+    msg = {"topic": TOPIC, "title": title, "message": message, "click": PAGE, "icon": ICON}
+    if image:
+        msg["attach"] = IMAGE
+        msg["filename"] = "drachenwetter.png"
+    body = json.dumps(msg).encode()
     req = urllib.request.Request("https://ntfy.sh/", data=body, method="POST",
                                  headers={"Content-Type": "application/json"})
     urllib.request.urlopen(req, timeout=20).read()
@@ -76,9 +86,8 @@ def main():
 
     if mode == "test":
         win = best_window(hourly, now.date()) or best_window(hourly, now.date() + timedelta(days=1))
-        info = (f"Nächstes Fenster: {win[0]}–{win[1]} Uhr, bis {win[2]} km/h" if win
-                else "Heute und morgen leider kein Drachenwind.")
-        send("Drachenwetter: Test ✅", "Benachrichtigungen funktionieren. " + info, tags=("white_check_mark",))
+        info = f"Nächstes Fenster: {line(win)}" if win else "Heute und morgen kein Drachenwind."
+        send("Test: Benachrichtigungen funktionieren", info)
         return
 
     if mode == "weekend":
@@ -87,9 +96,9 @@ def main():
         for d in days:
             win = best_window(hourly, d)
             if win:
-                lines.append(f"{WEEKDAY[d.weekday()]} {win[0]}–{win[1]} Uhr, bis {win[2]} km/h")
+                lines.append(f"{WEEKDAY[d.weekday()]}: {line(win)}")
         if lines:
-            send("Drachenwetter am Wochenende 🪁", "\n".join(lines) + "\nTempelhofer Feld")
+            send("🪁 Drachenwetter am Wochenende", "\n".join(lines))
         else:
             print("Kein Drachenwetter am Wochenende.")
         return
@@ -97,7 +106,7 @@ def main():
     # today
     win = best_window(hourly, now.date(), not_before=now.hour)
     if win:
-        send("Heute Drachenwetter 🪁", f"{win[0]}–{win[1]} Uhr, bis {win[2]} km/h auf dem Tempelhofer Feld")
+        send("🪁 Heute Drachenwetter", line(win))
     else:
         print("Heute kein Drachenwetter.")
 
