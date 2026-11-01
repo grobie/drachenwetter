@@ -1,0 +1,32 @@
+name: Drachenwetter-Benachrichtigung
+
+on:
+  schedule:
+    # Zeiten in UTC. Freitag 17:00 UTC = 18:00 Uhr (Winter) / 19:00 Uhr (Sommer)
+    - cron: '0 17 * * 5'
+    # Samstag und Sonntag 06:30 UTC = 7:30 Uhr (Winter) / 8:30 Uhr (Sommer)
+    - cron: '30 6 * * 6,0'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'test, weekend oder today'
+        default: test
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    env:
+      # Name des ntfy-Themas – als Repository-Secret hinterlegt, damit er nicht öffentlich ist
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vorhersage prüfen und ggf. benachrichtigen
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MODE="${{ inputs.mode }}"
+          elif [ "${{ github.event.schedule }}" = "0 17 * * 5" ]; then
+            MODE=weekend
+          else
+            MODE=today
+          fi
+          python3 .github/scripts/notify.py "$MODE"

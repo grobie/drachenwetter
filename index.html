@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#cfe6f7">
+<link rel="manifest" href="manifest.webmanifest?v=5">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Drachenwetter</title>
+<style>
+  :root {
+    --top:#bfe0f7; --bottom:#f4f9fc; --ink:#0f2233; --muted:rgba(15,34,51,.55);
+    --line:rgba(15,34,51,.14); --ok:#2fa36b; --meh:#e2a43a; --bad:#d9624f;
+  }
+  body.fly     { --top:#8ccbf3; --bottom:#eef7fd; }
+  body.maybe   { --top:#b5d6ec; --bottom:#f3f7fa; }
+  body.calm    { --top:#d8e2ea; --bottom:#f6f7f8; }
+  body.storm   { --top:#56687a; --bottom:#b7c2cc; --ink:#f4f7fa; --muted:rgba(244,247,250,.7); --line:rgba(244,247,250,.25); }
+  body.unknown { --top:#dcdcdc; --bottom:#f3f3f3; --ink:#7a7a7a; --muted:rgba(0,0,0,.35); }
+  * { box-sizing:border-box; }
+  html,body { margin:0; min-height:100%; }
+  body {
+    font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    color:var(--ink); background:linear-gradient(180deg,var(--top) 0%,var(--bottom) 78%);
+    background-attachment:fixed; height:100vh; height:100dvh; overflow-y:auto; overflow-x:hidden; display:flex; flex-direction:column;
+    transition:background .8s ease, color .4s ease; -webkit-tap-highlight-color:transparent;
+  }
+  header { padding:18px 22px 0; display:flex; justify-content:space-between; font-size:12px;
+           letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  /* Szene füllt den freien Platz; mit offenen Details schrumpft sie, damit alles ohne Scrollen passt */
+  #stage { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+           cursor:pointer; user-select:none; padding:0 0 28px; }
+  #scene { overflow:visible; flex:1 1 0; min-height:110px; max-height:440px; width:100%; max-width:480px; display:block; }
+  body.open #stage { padding-bottom:14px; }
+  body.open #verdict { font-size:clamp(26px,7.5vw,38px); margin-top:0; }
+  body.unknown #scene { filter:grayscale(1); opacity:.35; }
+  #verdict { font-size:clamp(30px,8.5vw,44px); font-weight:650; letter-spacing:-.025em; margin:4px 0 6px; text-align:center; }
+  #sub { font-size:15px; color:var(--muted); font-variant-numeric:tabular-nums; letter-spacing:.01em; min-height:1.2em; }
+  #place { all:unset; cursor:pointer; text-transform:uppercase; letter-spacing:.08em; display:inline-flex; align-items:center; gap:5px; }
+  #place::after { content:""; width:5px; height:5px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(45deg) translateY(-2px); opacity:.8; }
+  #updated { all:unset; cursor:pointer; text-transform:none; letter-spacing:.02em; }
+  #sheet { position:fixed; inset:0; display:none; background:rgba(15,34,51,.28); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); z-index:10; }
+  #sheet.open { display:flex; align-items:flex-start; justify-content:center; padding-top:64px; }
+  #sheet .panel { width:min(92vw,420px); background:#fff; border-radius:22px; padding:16px; box-shadow:0 20px 60px rgba(15,34,51,.2); color:#0f2233; animation:rise .2s ease; }
+  #sheet input { width:100%; font:inherit; font-size:17px; padding:12px 14px; border-radius:12px; border:1px solid rgba(15,34,51,.15); outline:none; background:#f5f8fa; }
+  #sheet input:focus { border-color:#8ccbf3; background:#fff; }
+  #sheet ul { list-style:none; margin:8px 0 0; padding:0; }
+  #sheet li { padding:12px 6px; border-bottom:1px solid rgba(15,34,51,.07); cursor:pointer; }
+  #sheet li:last-child { border-bottom:0; }
+  #sheet li small { display:block; color:rgba(15,34,51,.5); font-size:13px; margin-top:2px; }
+  #sheet li.quick { color:#2f7fd1; }
+  #sheet .msg { padding:12px 6px; color:rgba(15,34,51,.5); font-size:14px; }
+  #details { display:none; flex:0 0 auto; margin:0 16px 16px; padding:18px 20px; border-radius:22px;
+             background:rgba(255,255,255,.62); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+             color:#0f2233; font-size:15px; box-shadow:0 10px 40px rgba(15,34,51,.08); }
+  #details.open { display:block; animation:rise .25s ease; }
+  @keyframes rise { from { opacity:0; transform:translateY(8px);} }
+  .row { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid rgba(15,34,51,.07); }
+  .row:last-of-type { border-bottom:0; }
+  .row span { color:rgba(15,34,51,.55); }
+  .row b { font-weight:600; font-variant-numeric:tabular-nums; }
+  .label { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:rgba(15,34,51,.45); margin:16px 0 8px; }
+  .bars { display:flex; align-items:flex-end; gap:3px; height:84px; overflow-x:auto; }
+  .bar { flex:0 0 14px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; }
+  .bar i { display:block; width:8px; border-radius:4px; background:var(--bad); opacity:.85; }
+  .bar.ok i { background:var(--ok); } .bar.meh i { background:var(--meh); }
+  .bar em { font-style:normal; font-size:9px; color:rgba(15,34,51,.45); height:12px; margin-top:4px; }
+  .bar.day { border-left:1px dashed rgba(15,34,51,.18); }
+  .small { font-size:11px; color:rgba(15,34,51,.45); margin-top:14px; line-height:1.5; }
+  .small:first-child { margin-top:0; }
+  .small a { color:inherit; }
+  #scene .streak { animation:streak 2.6s cubic-bezier(.4,0,.2,1) infinite; }
+  @keyframes streak { 0% { transform:translateX(60px); opacity:0;} 35% { opacity:1;} 100% { transform:translateX(-90px); opacity:0;} }
+</style>
+</head>
+<body class="unknown">
+<header><button id="place" type="button" aria-label="Ort ändern">Tempelhofer Feld</button><button id="updated" type="button" aria-label="Neu laden"></button></header>
+<div id="sheet" role="dialog" aria-label="Ort wählen"><div class="panel">
+  <input id="q" type="search" placeholder="Ort suchen, z. B. Tegeler See" autocomplete="off" enterkeyhint="search">
+  <ul id="results"></ul>
+</div></div>
+
+<div id="stage">
+  <svg id="scene" viewBox="0 0 400 320" aria-hidden="true">
+    <defs>
+      <linearGradient id="gA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff8d6b"/><stop offset="1" stop-color="#ff5a4e"/></linearGradient>
+      <linearGradient id="gB" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffaf3"/><stop offset="1" stop-color="#ffe9d6"/></linearGradient>
+      <linearGradient id="gC" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e8453f"/><stop offset="1" stop-color="#c7303a"/></linearGradient>
+      <linearGradient id="gD" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb08a"/><stop offset="1" stop-color="#ff7a5c"/></linearGradient>
+      <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f2233" stop-opacity=".07"/><stop offset="1" stop-color="#0f2233" stop-opacity="0"/></linearGradient>
+      <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#0f2233" flood-opacity=".16"/></filter>
+    </defs>
+    <g id="streaks"></g>
+    <rect x="-2000" y="268" width="4400" height="52" fill="url(#ground)"/>
+    <line x1="-2000" y1="268" x2="2400" y2="268" stroke="var(--line)" stroke-width="1"/>
+    <path id="string" fill="none" stroke="var(--ink)" stroke-opacity=".35" stroke-width=".8"/>
+    <g id="kite" filter="url(#soft)">
+      <path id="tail2" fill="#ffd2b8"/>
+      <path id="tail1" fill="#ff5a4e"/>
+      <polygon points="0,-62 46,-6 0,0"   fill="url(#gB)"/>
+      <polygon points="0,-62 -46,-6 0,0"  fill="url(#gA)"/>
+      <polygon points="-46,-6 0,74 0,0"   fill="url(#gC)"/>
+      <polygon points="46,-6 0,74 0,0"    fill="url(#gD)"/>
+      <path d="M0 -62 V74 M-46 -6 H46" stroke="#fff" stroke-opacity=".45" stroke-width=".9"/>
+    </g>
+  </svg>
+  <div id="verdict">&nbsp;</div>
+  <div id="sub">&nbsp;</div>
+</div>
+
+<div id="details"></div>
+
+<script>
+// ---- Einstellungen (km/h, 10‑Minuten‑Mittelwind) ----
+const HOME = { name:'Tempelhofer Feld', lat:52.4730, lon:13.4030 };
+let place = HOME;
+try { const p = JSON.parse(localStorage.getItem('place')); if (p && isFinite(p.lat) && isFinite(p.lon)) place = p; } catch (e) {}
+const MIN_FLY   = 12;  // ab hier fliegt ein normaler Kinderdrachen
+const MIN_TRY   = 8;   // 8–12: knapp
+const MAX_MEAN  = 38;  // darüber zu stürmisch
+const MAX_GUST  = 55;  // Böen darüber: zu ruppig
+
+function judge(w, g) {
+  if (w == null) return 'unknown';
+  if (w > MAX_MEAN || (g != null && g > MAX_GUST)) return 'storm';
+  if (w >= MIN_FLY) return 'fly';
+  if (w >= MIN_TRY) return 'maybe';
+  return 'calm';
+}
+function bft(kmh) {
+  const lim = [1,6,12,20,29,39,50,62,75,89,103,118];
+  let i = 0; while (i < lim.length && kmh >= lim[i]) i++; return i;
+}
+function dirName(d) {
+  if (d == null) return '–';
+  return ['N','NO','O','SO','S','SW','W','NW'][Math.round(d / 45) % 8];
+}
+const fmt = x => x == null ? '–' : Math.round(x);
+const hhmm = d => d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+
+// ---- Szene ----
+// Jeder Zustand: Position, Größe, Neigung, Bewegung des Drachens und des Schweifs
+const POSE = {
+  fly:     { x:150, y:78,  s:.95,  r:-16, bob:7,  sway:4,  amp:16, spd:3.2, drift:-46, len:100, streaks:3 },
+  maybe:   { x:196, y:150, s:.8,   r:-6,  bob:5,  sway:11, amp:9,  spd:1.6, drift:-22, len:60, streaks:0 },
+  storm:   { x:250, y:160, s:.8,   r:0,   bob:0,  sway:0,  amp:26, spd:7,   drift:60,  len:90,  streaks:6, spin:true, broken:true },
+  calm:    { x:212, y:262, s:1,    r:90,  bob:0,  sway:0,  amp:7,  spd:0,   drift:0,   len:130, streaks:0, ground:true },
+  unknown: { x:212, y:262, s:1,    r:90,  bob:0,  sway:0,  amp:7,  spd:0,   drift:0,   len:130, streaks:0, ground:true }
+};
+let pose = POSE.unknown, state = 'unknown', t0 = performance.now();
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = id => document.getElementById(id);
+
+function ribbon(len, amp, phase, drift, w0, shift) {
+  const N = 28, L = [], R = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const y = 74 + t * len;
+    const x = shift + drift * t * t + amp * t * Math.sin(phase - t * 5.5);
+    const w = w0 * (1 - t) + .4;
+    L.push(`${(x - w).toFixed(1)},${y.toFixed(1)}`); R.unshift(`${(x + w).toFixed(1)},${y.toFixed(1)}`);
+  }
+  return 'M' + L.join(' L') + ' L' + R.join(' L') + 'Z';
+}
+function frame(now) {
+  const p = pose, t = reduce ? 0 : (now - t0) / 1000;
+  const bob = Math.sin(t * 1.3) * p.bob, bobx = Math.cos(t * .9) * p.bob * .6;
+  const rot = p.spin ? (t * 160) % 360 : p.r + Math.sin(t * 1.1) * p.sway;
+  let x = p.x + bobx, y = p.y + bob, sc = p.s, op = 1;
+  if (p.broken) {               // Leine gerissen: Drachen trudelt davon, wiederholt sich
+    const c = (t % 5) / 5, e = c * c * (3 - 2 * c);
+    x = 250 - 330 * e; y = 160 - 130 * e + Math.sin(t * 3) * 10;
+    sc = p.s * (1 - .55 * e);
+    op = c < .08 ? c / .08 : c > .85 ? (1 - c) / .15 : 1;
+  }
+  const sy = p.ground ? .3 : 1;   // am Boden: flach in Perspektive
+  $('kite').setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${sc.toFixed(3)} ${(sc * sy).toFixed(3)}) rotate(${rot.toFixed(1)})`);
+  $('kite').setAttribute('opacity', op.toFixed(2));
+  const ph = t * p.spd;
+  $('tail1').setAttribute('d', ribbon(p.len, p.amp, ph, p.drift, 3.2, 0));
+  $('tail2').setAttribute('d', ribbon(p.len * .82, p.amp * 1.15, ph + 1.1, p.drift * .9, 2.2, 5));
+  if (p.broken) {               // nur das lose Leinenende flattert am Rand
+    const fx = 330 + Math.sin(t * 6) * 14, fy = 236 + Math.cos(t * 5) * 10;
+    $('string').setAttribute('d', `M420 330 Q ${(372 + Math.sin(t * 4) * 12).toFixed(1)} ${(300 + Math.cos(t * 6) * 8).toFixed(1)} ${fx.toFixed(1)} ${fy.toFixed(1)}`);
+    if (!reduce) requestAnimationFrame(frame);
+    return;
+  }
+  // Leine: vom Waagepunkt zum rechten unteren Rand, leicht durchhängend
+  const a = rot * Math.PI / 180, bx = 0, by = 10;
+  const wx = x + p.s * (bx * Math.cos(a) - by * Math.sin(a));
+  const wy = y + p.s * sy * (bx * Math.sin(a) + by * Math.cos(a));
+  const ex = 420, ey = p.ground ? 270 : 330;
+  const sag = p.ground ? 0 : (state === 'maybe' ? 46 : 26);
+  $('string').setAttribute('d', `M${wx.toFixed(1)} ${wy.toFixed(1)} Q ${((wx + ex) / 2 + 10).toFixed(1)} ${((wy + ey) / 2 + sag).toFixed(1)} ${ex} ${ey}`);
+  if (!reduce) requestAnimationFrame(frame);
+}
+function drawScene(s) {
+  state = s; pose = POSE[s];
+  document.body.className = s + ($('details').classList.contains('open') ? ' open' : '');
+  const sky = {fly:'#8ccbf3', maybe:'#b5d6ec', calm:'#d8e2ea', storm:'#56687a', unknown:'#dcdcdc'}[s];
+  document.querySelector('meta[name=theme-color]').setAttribute('content', sky);
+  const g = $('streaks'); g.innerHTML = '';
+  const rows = [[60,70,90],[250,120,70],[30,170,60],[300,60,50],[120,210,80],[220,30,60]];
+  for (let i = 0; i < pose.streaks; i++) {
+    const [x, y, w] = rows[i];
+    g.insertAdjacentHTML('beforeend',
+      `<line class="streak" x1="${x}" y1="${y}" x2="${x + w}" y2="${y}" stroke="${s === 'storm' ? '#fff' : '#ffffff'}" stroke-opacity=".9" stroke-width="1.2" stroke-linecap="round" style="animation-delay:${(i * .7).toFixed(1)}s"/>`);
+  }
+  if (reduce) frame(performance.now());
+}
+
+const TEXT = {
+  fly:     'Drachen im Wind',
+  maybe:   'Knapp',
+  calm:    'Drachen am Boden',
+  storm:   'Zu stürmisch',
+  unknown: 'Keine Daten'
+};
+
+// ---- Daten holen ----
+async function getJSON(url) {
+  const r = await fetch(url, {cache:'no-store'});
+  if (!r.ok) throw new Error(r.status + ' ' + url);
+  return r.json();
+}
+// Messwerte: DWD-Station Berlin-Tempelhof (steht direkt am Feld) via Bright Sky
+async function loadNow() {
+  const j = await getJSON(`https://api.brightsky.dev/current_weather?lat=${place.lat}&lon=${place.lon}`);
+  const w = j.weather || {};
+  const src = (j.sources || []).find(s => s.id === w.source_id) || (j.sources || [])[0] || {};
+  return {
+    wind: w.wind_speed_10 ?? w.wind_speed_30 ?? w.wind_speed_60,
+    gust: w.wind_gust_speed_10 ?? w.wind_gust_speed_30 ?? w.wind_gust_speed_60,
+    dir:  w.wind_direction_10 ?? w.wind_direction_30 ?? w.wind_direction_60,
+    temp: w.temperature, rain: w.precipitation_60 ?? w.precipitation_30,
+    time: w.timestamp ? new Date(w.timestamp) : null,
+    station: src.station_name, dist: src.distance
+  };
+}
+// Vorhersage: DWD ICON-Modell via Open-Meteo
+async function loadForecast() {
+  const base = `https://api.open-meteo.com/v1/forecast?latitude=${place.lat}&longitude=${place.lon}` +
+    `&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation_probability,precipitation` +
+    `&daily=sunrise,sunset&wind_speed_unit=kmh&timezone=Europe%2FBerlin&forecast_days=3`;
+  try { return await getJSON(base + '&models=icon_seamless'); }
+  catch (e) { return getJSON(base); }
+}
+
+function render(now, fc, errors) {
+  let cur = null;
+  const hours = [];
+  if (fc && fc.hourly) {
+    const H = fc.hourly;
+    for (let i = 0; i < H.time.length; i++) {
+      hours.push({ t:new Date(H.time[i]), w:H.wind_speed_10m[i], g:H.wind_gusts_10m[i],
+                   d:H.wind_direction_10m[i], pp:H.precipitation_probability?.[i] });
+    }
+  }
+  const nowT = Date.now();
+  const curFc = hours.filter(h => h.t.getTime() <= nowT).pop();
+  if (now && now.wind != null) cur = {w:now.wind, g:now.gust};
+  else if (curFc) cur = {w:curFc.w, g:curFc.g};
+
+  const st = cur ? judge(cur.w, cur.g) : 'unknown';
+  drawScene(st);
+  $('verdict').textContent = TEXT[st];
+  $('sub').textContent = cur ? `${fmt(cur.w)} km/h  ·  ${bft(cur.w)} Bft${cur.g != null ? `  ·  Böen ${fmt(cur.g)}` : ''}` : '';
+  // Oben rechts: wie aktuell die Daten sind – Messzeit der Station, sonst Zeitpunkt der Vorhersage
+  $('updated').textContent = now && now.time ? 'Gemessen ' + whenText(now.time)
+    : fc ? 'Vorhersage, ' + whenText(new Date()) : 'Nicht erreichbar';
+
+  const daylight = t => {
+    if (!fc || !fc.daily) return t.getHours() >= 8 && t.getHours() <= 17;
+    for (let i = 0; i < fc.daily.time.length; i++) {
+      const sr = new Date(fc.daily.sunrise[i]), ss = new Date(fc.daily.sunset[i]);
+      if (t >= sr && t <= new Date(ss.getTime() - 30*60000)) return true;
+    }
+    return false;
+  };
+  const upcoming = hours.filter(h => h.t.getTime() > nowT - 3600000 && daylight(h.t));
+  const nextGood = upcoming.find(h => judge(h.w, h.g) === 'fly' && !(h.pp >= 60));
+  const dayLabel = t => {
+    const d0 = new Date(); d0.setHours(0,0,0,0);
+    const diff = Math.round((new Date(t).setHours(0,0,0,0) - d0) / 86400000);
+    return diff === 0 ? 'heute' : diff === 1 ? 'morgen' : t.toLocaleDateString('de-DE', {weekday:'long'});
+  };
+
+  let html = '';
+  if (st !== 'fly' && fc) {
+    html += `<div class="row"><span>Nächstes Windfenster</span><b>${nextGood ? dayLabel(nextGood.t) + ', ' + hhmm(nextGood.t) : 'keins in 3 Tagen'}</b></div>`;
+  }
+  if (now) {
+    html += `
+      <div class="row"><span>Wind</span><b>${fmt(now.wind)} km/h · ${now.wind != null ? bft(now.wind) : '–'} Bft</b></div>
+      <div class="row"><span>Böen</span><b>${fmt(now.gust)} km/h</b></div>
+      <div class="row"><span>Richtung</span><b>${dirName(now.dir)}</b></div>
+      <div class="row"><span>Temperatur</span><b>${now.temp != null ? now.temp.toFixed(1) + ' °C' : '–'}</b></div>
+      <div class="row"><span>Station</span><b>${now.station || '–'}</b></div>`;
+  }
+  if (upcoming.length) {
+    const sl = upcoming.slice(0, 36), mx = Math.max(40, ...sl.map(h => h.w || 0));
+    html += `<div class="label">Vorhersage tagsüber</div><div class="bars">` + sl.map((h, i) => {
+      const j = judge(h.w, h.g), cls = j === 'fly' ? 'ok' : j === 'maybe' ? 'meh' : '';
+      const newDay = i > 0 && h.t.getDate() !== sl[i-1].t.getDate();
+      const lab = (i === 0 || newDay || h.t.getHours() % 3 === 0) ? h.t.getHours() : '';
+      return `<div class="bar ${cls}${newDay ? ' day' : ''}" title="${hhmm(h.t)} · ${fmt(h.w)} km/h"><i style="height:${Math.max(3, (h.w || 0) / mx * 64)}px"></i><em>${lab}</em></div>`;
+    }).join('') + `</div>`;
+  }
+  html += `<div class="small">DWD via <a href="https://brightsky.dev">Bright Sky</a> &amp; <a href="https://open-meteo.com">Open-Meteo</a>${errors.length ? '<br>' + errors.join('<br>') : ''}</div>`;
+  $('details').innerHTML = html;
+}
+
+function whenText(d) {
+  const d0 = new Date(); d0.setHours(0,0,0,0);
+  const diff = Math.round((new Date(d).setHours(0,0,0,0) - d0) / 86400000);
+  const day = diff === 0 ? 'heute' : diff === -1 ? 'gestern'
+    : d.toLocaleDateString('de-DE', {weekday:'short', day:'numeric', month:'numeric'});
+  return day + ', ' + hhmm(d);
+}
+
+// ---- Ort wählen ----
+function showPlace() { $('place').textContent = place.name; }
+function setPlace(p) {
+  place = p;
+  try { p === HOME ? localStorage.removeItem('place') : localStorage.setItem('place', JSON.stringify(p)); } catch (e) {}
+  showPlace(); closeSheet(); $('details').innerHTML = ''; $('verdict').textContent = '\u00a0'; $('sub').textContent = '';
+  drawScene('unknown'); refresh();
+}
+const esc = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function quickItems() {
+  let h = '';
+  if (navigator.geolocation) h += '<li class="quick" data-act="geo">Mein Standort</li>';
+  if (place !== HOME && place.name !== HOME.name) h += '<li class="quick" data-act="home">Tempelhofer Feld</li>';
+  return h;
+}
+function openSheet() { $('q').value = ''; $('results').innerHTML = quickItems(); $('sheet').classList.add('open'); setTimeout(() => $('q').focus(), 50); }
+function closeSheet() { $('sheet').classList.remove('open'); }
+let found = [], searchTimer = null, searchSeq = 0;
+async function search(q) {
+  const seq = ++searchSeq;
+  if (q.trim().length < 2) { $('results').innerHTML = quickItems(); return; }
+  try {
+    const j = await getJSON(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q.trim())}&count=6&language=de&format=json`);
+    if (seq !== searchSeq) return;
+    found = j.results || [];
+    $('results').innerHTML = found.length
+      ? found.map((r, i) => `<li data-i="${i}">${esc(r.name)}<small>${esc([r.admin1, r.country].filter(Boolean).join(', '))}</small></li>`).join('')
+      : '<div class="msg">Nichts gefunden.</div>';
+  } catch (e) {
+    if (seq === searchSeq) $('results').innerHTML = '<div class="msg">Suche gerade nicht erreichbar.</div>';
+  }
+}
+$('place').addEventListener('click', openSheet);
+$('updated').addEventListener('click', () => { $('updated').textContent = 'Lädt …'; refresh(); });
+$('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+$('q').addEventListener('input', e => { clearTimeout(searchTimer); searchTimer = setTimeout(() => search(e.target.value), 250); });
+$('results').addEventListener('click', e => {
+  const li = e.target.closest('li'); if (!li) return;
+  if (li.dataset.act === 'home') return setPlace(HOME);
+  if (li.dataset.act === 'geo') {
+    li.textContent = 'Standort wird ermittelt …';
+    navigator.geolocation.getCurrentPosition(
+      pos => setPlace({ name:'Mein Standort', lat:+pos.coords.latitude.toFixed(4), lon:+pos.coords.longitude.toFixed(4) }),
+      () => { li.textContent = 'Standort nicht verfügbar'; },
+      { timeout:10000, maximumAge:600000 });
+    return;
+  }
+  const r = found[+li.dataset.i];
+  if (r) setPlace({ name:r.name, lat:+r.latitude.toFixed(4), lon:+r.longitude.toFixed(4) });
+});
+showPlace();
+
+let refreshSeq = 0;
+async function refresh() {
+  const seq = ++refreshSeq;
+  const errors = [];
+  const [now, fc] = await Promise.all([
+    loadNow().catch(e => { errors.push('Messung: ' + e.message); return null; }),
+    loadForecast().catch(e => { errors.push('Vorhersage: ' + e.message); return null; })
+  ]);
+  if (seq === refreshSeq) render(now, fc, errors);   // Antwort für einen inzwischen gewechselten Ort verwerfen
+}
+
+$('stage').addEventListener('click', () => {
+  const open = $('details').classList.toggle('open');
+  document.body.classList.toggle('open', open);
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+drawScene('unknown');
+if (!reduce) requestAnimationFrame(frame);
+refresh();
+setInterval(refresh, 10 * 60 * 1000);
+</script>
+</body>
+</html>
