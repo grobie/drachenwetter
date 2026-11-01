@@ -340,22 +340,36 @@ function quickItems() {
 function openSheet() { $('q').value = ''; $('results').innerHTML = quickItems(); $('sheet').classList.add('open'); setTimeout(() => $('q').focus(), 50); }
 function closeSheet() { $('sheet').classList.remove('open'); }
 let found = [], searchTimer = null, searchSeq = 0;
+const PLACE_TYPES = ['city', 'district', 'locality', 'county', 'state', 'country'];
+function toResult(f) {
+  const p = f.properties || {}, [lon, lat] = f.geometry.coordinates;
+  const street = [p.street, p.housenumber].filter(Boolean).join(' ');
+  let name = p.name || street || p.postcode || p.city || '?';
+  if (name === p.postcode && (p.city || p.town)) name += ' ' + (p.city || p.town);
+  const town = p.city || p.town || p.village;
+  const area = [p.district || p.locality, town].filter((t, i, a) => t && t !== name && a.indexOf(t) === i).join(', ');
+  const sub = [name === street ? '' : street, [p.postcode, area].filter(Boolean).join(' ') || (p.state !== name ? p.state : ''),
+               p.country && p.country !== 'Deutschland' ? p.country : ''].filter(Boolean).join(', ');
+  const isPlace = PLACE_TYPES.includes(p.type) || p.osm_key === 'place';
+  return { name, sub, lat, lon, isPlace };
+}
 async function search(q) {
   const seq = ++searchSeq;
-  if (q.trim().length < 3) { $('results').innerHTML = quickItems(); return; }
+  q = q.trim();
+  if (q.length < 3) { $('results').innerHTML = quickItems(); return; }
+  const base = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=de`;
   try {
-    // Photon (OpenStreetMap): findet Orte, Parks, Adressen und Postleitzahlen; Ergebnisse nahe Berlin zuerst
-    const j = await getJSON(`https://photon.komoot.io/api/?q=${encodeURIComponent(q.trim())}&lang=de&limit=7&lat=52.52&lon=13.40`);
+    // 1) Orte nach Bekanntheit (München = die Stadt), 2) Straßen, Parks, Adressen in der Nähe
+    const [far, near] = await Promise.all([
+      getJSON(`${base}&limit=6`).catch(() => ({})),
+      getJSON(`${base}&limit=8&lat=${place.lat}&lon=${place.lon}&zoom=11`).catch(() => ({}))
+    ]);
     if (seq !== searchSeq) return;
-    found = (j.features || []).map(f => {
-      const p = f.properties || {}, [lon, lat] = f.geometry.coordinates;
-      const street = [p.street, p.housenumber].filter(Boolean).join(' ');
-      let name = p.name || street || p.postcode || p.city || '?';
-      if (name === p.postcode && (p.city || p.town)) name += ' ' + (p.city || p.town);
-      const rest = [name === street ? '' : street, [p.postcode, p.city || p.town || p.village].filter(Boolean).join(' '),
-                    p.country !== 'Deutschland' ? p.country : ''].filter(Boolean);
-      return { name, sub: rest.filter(t => t !== name).join(', '), lat, lon };
-    }).filter((r, i, a) => a.findIndex(x => x.name === r.name && x.sub === r.sub) === i);
+    const places = (far.features || []).map(toResult).filter(r => r.isPlace).slice(0, 3);
+    const nearby = (near.features || []).map(toResult);
+    found = [...places, ...nearby]
+      .filter((r, i, a) => a.findIndex(x => x.name === r.name && x.sub === r.sub) === i)
+      .slice(0, 7);
     $('results').innerHTML = found.length
       ? found.map((r, i) => `<li data-i="${i}">${esc(r.name)}<small>${esc(r.sub)}</small></li>`).join('')
       : '<div class="msg">Nichts gefunden.</div>';
