@@ -1,0 +1,21 @@
+name: Wind-Probe
+on: push
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          places = [("Tempelhofer Feld",52.473,13.403),("Zugspitze",47.421,10.985),("Brocken",51.800,10.617),
+                    ("Fichtelberg",50.428,12.954),("Feldberg (Schwarzwald)",47.874,8.004),("Helgoland",54.182,7.885),
+                    ("Sylt / List",55.017,8.433),("Fehmarn",54.437,11.194),("Marseille",43.296,5.370),("Perpignan",42.699,2.895),
+                    ("Kap Arkona",54.679,13.433),("Wasserkuppe",50.498,9.938)]
+          for name, lat, lon in places:
+              u = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=wind_speed_10m,wind_gusts_10m&wind_speed_unit=kmh&models=icon_seamless"
+              try:
+                  c = json.load(urllib.request.urlopen(u, timeout=20))["current"]
+                  print(f"WIND {name}: {c['wind_speed_10m']} km/h, Böen {c['wind_gusts_10m']}")
+              except Exception as e:
+                  print(f"WIND {name}: Fehler {e}")
+          PY
