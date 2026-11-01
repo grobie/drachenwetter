@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'test, weekend oder today'
+        description: 'test, demo, weekend oder today'
         default: test
 
 jobs:

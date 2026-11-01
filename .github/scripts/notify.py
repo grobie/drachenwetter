@@ -6,6 +6,7 @@ Modi (erstes Argument):
   weekend  – Vorschau für Samstag und Sonntag (Freitagabend)
   today    – nur heute (Samstag-/Sonntagmorgen)
   test     – schickt immer eine Testnachricht mit der aktuellen Lage
+  demo     – Wochenendvorschau mit erfundenen Werten (zum Ansehen)
 """
 import json
 import os
@@ -105,6 +106,12 @@ def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "today"
     now = datetime.now(BERLIN)
     hourly = get_json(FORECAST)["hourly"]
+
+    if mode == "demo":
+        # Beispiel mit erfundenen Werten, um das Aussehen der Wochenendvorschau zu prüfen
+        lines = [f"Samstag: {line('fly', (11, 15, 22))}", f"Sonntag: {line('maybe', (10, 13, 11))}"]
+        send("🪁 Samstag Drachenwetter", "\n".join(lines), image=IMAGE["fly"])
+        return
 
     if mode == "test":
         status, win = day_status(hourly, now.date(), not_before=now.hour)
