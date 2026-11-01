@@ -369,37 +369,42 @@ function toResult(f) {
   const sub = [name === street ? '' : street, [p.postcode, area].filter(Boolean).join(' ') || (p.state !== name ? p.state : ''),
                p.country && p.country !== 'Deutschland' ? p.country : ''].filter(Boolean).join(', ');
   const isPlace = PLACE_TYPES.includes(p.type) || p.osm_key === 'place';
-  return { name, sub, lat, lon, isPlace };
+  const rank = ['city', 'town', 'borough', 'suburb', 'village'].indexOf(p.osm_value);
+  return { name, sub, lat, lon, isPlace, rank: rank < 0 ? 9 : rank };
 }
+const searchCache = new Map();
 async function search(q) {
   const seq = ++searchSeq;
   q = q.trim();
   if (q.length < 3) { $('results').innerHTML = quickItems(); return; }
-  const base = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=de`;
   try {
-    // 1) Orte nach Bekanntheit (München = die Stadt), 2) Straßen, Parks, Adressen in der Nähe
-    const [far, near] = await Promise.all([
-      getJSON(`${base}&limit=6`).catch(() => ({})),
-      getJSON(`${base}&limit=8&lat=${place.lat}&lon=${place.lon}&zoom=11`).catch(() => ({}))
-    ]);
+    // Eine Anfrage pro Suche, Ergebnisse werden gemerkt – Photon ist kostenlos und bremst bei vielen Anfragen
+    let j = searchCache.get(q);
+    if (!j) {
+      j = await getJSON(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=de&limit=8&lat=${place.lat}&lon=${place.lon}&zoom=11`);
+      searchCache.set(q, j);
+    }
     if (seq !== searchSeq) return;
-    const places = (far.features || []).map(toResult).filter(r => r.isPlace).slice(0, 3);
-    const nearby = (near.features || []).map(toResult);
-    found = [...places, ...nearby]
+    const all = (j.features || []).map(toResult);
+    // Städte und Stadtteile zuerst, sonst Reihenfolge von Photon (bekannt und nah)
+    found = [...all.filter(r => r.isPlace).sort((x, y) => x.rank - y.rank), ...all.filter(r => !r.isPlace)]
       .filter((r, i, a) => a.findIndex(x => x.name === r.name && x.sub === r.sub) === i)
       .slice(0, 7);
     $('results').innerHTML = found.length
       ? found.map((r, i) => `<li data-i="${i}">${esc(r.name)}<small>${esc(r.sub)}</small></li>`).join('')
       : '<div class="msg">Nichts gefunden.</div>';
   } catch (e) {
-    if (seq === searchSeq) $('results').innerHTML = '<div class="msg">Suche gerade nicht erreichbar.</div>';
+    if (seq !== searchSeq) return;
+    $('results').innerHTML = String(e.message).startsWith('429')
+      ? '<div class="msg">Zu viele Suchen – bitte einen Moment warten.</div>'
+      : '<div class="msg">Suche gerade nicht erreichbar.</div>';
   }
 }
 $('place').addEventListener('click', openSheet);
 $('updated').addEventListener('click', () => { $('updated').textContent = 'Lädt …'; refresh(); });
 $('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
-$('q').addEventListener('input', e => { clearTimeout(searchTimer); searchTimer = setTimeout(() => search(e.target.value), 250); });
+$('q').addEventListener('input', e => { clearTimeout(searchTimer); searchTimer = setTimeout(() => search(e.target.value), 450); });
 $('results').addEventListener('click', e => {
   const li = e.target.closest('li'); if (!li) return;
   if (li.dataset.act === 'home') return setPlace(HOME);
