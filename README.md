@@ -7,7 +7,7 @@ Fliegt der Drachen heute auf dem Tempelhofer Feld?
 ![Drachen im Wind, Knapp, Drachen am Boden, Zu stürmisch](docs/zustaende.png)
 
 - **Auf einen Blick:** Drachen im Wind, knapp, am Boden oder zu stürmisch. Antippen zeigt Messwerte und Vorhersage, oben links lässt sich der Ort wechseln.
-- **Am Wochenende:** Hinweis per [ntfy](https://ntfy.sh), wenn tagsüber Drachenwind kommt (Freitagabend als Vorschau, Samstag/Sonntag morgens).
+- **Am Wochenende:** Hinweis per [ntfy](https://ntfy.sh), wenn tagsüber Drachenwind kommt oder es knapp wird (Freitagabend als Vorschau, Samstag/Sonntag morgens).
 - **Daten:** Deutscher Wetterdienst – Messung der Station Berlin-Tempelhof über [Bright Sky](https://brightsky.dev), Vorhersage (ICON) über [Open-Meteo](https://open-meteo.com).
 
 | | Mittelwind |
