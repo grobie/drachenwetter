@@ -77,7 +77,7 @@
 <body class="unknown">
 <header><button id="place" type="button" aria-label="Ort ändern">Tempelhofer Feld</button><button id="updated" type="button" aria-label="Neu laden"></button></header>
 <div id="sheet" role="dialog" aria-label="Ort wählen"><div class="panel">
-  <input id="q" type="search" placeholder="Ort suchen, z. B. Tegeler See" autocomplete="off" enterkeyhint="search">
+  <input id="q" type="search" placeholder="Ort, Adresse oder PLZ" autocomplete="off" enterkeyhint="search">
   <ul id="results"></ul>
 </div></div>
 
@@ -339,13 +339,22 @@ function closeSheet() { $('sheet').classList.remove('open'); }
 let found = [], searchTimer = null, searchSeq = 0;
 async function search(q) {
   const seq = ++searchSeq;
-  if (q.trim().length < 2) { $('results').innerHTML = quickItems(); return; }
+  if (q.trim().length < 3) { $('results').innerHTML = quickItems(); return; }
   try {
-    const j = await getJSON(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q.trim())}&count=6&language=de&format=json`);
+    // Photon (OpenStreetMap): findet Orte, Parks, Adressen und Postleitzahlen; Ergebnisse nahe Berlin zuerst
+    const j = await getJSON(`https://photon.komoot.io/api/?q=${encodeURIComponent(q.trim())}&lang=de&limit=7&lat=52.52&lon=13.40`);
     if (seq !== searchSeq) return;
-    found = j.results || [];
+    found = (j.features || []).map(f => {
+      const p = f.properties || {}, [lon, lat] = f.geometry.coordinates;
+      const street = [p.street, p.housenumber].filter(Boolean).join(' ');
+      let name = p.name || street || p.postcode || p.city || '?';
+      if (name === p.postcode && (p.city || p.town)) name += ' ' + (p.city || p.town);
+      const rest = [name === street ? '' : street, [p.postcode, p.city || p.town || p.village].filter(Boolean).join(' '),
+                    p.country !== 'Deutschland' ? p.country : ''].filter(Boolean);
+      return { name, sub: rest.filter(t => t !== name).join(', '), lat, lon };
+    }).filter((r, i, a) => a.findIndex(x => x.name === r.name && x.sub === r.sub) === i);
     $('results').innerHTML = found.length
-      ? found.map((r, i) => `<li data-i="${i}">${esc(r.name)}<small>${esc([r.admin1, r.country].filter(Boolean).join(', '))}</small></li>`).join('')
+      ? found.map((r, i) => `<li data-i="${i}">${esc(r.name)}<small>${esc(r.sub)}</small></li>`).join('')
       : '<div class="msg">Nichts gefunden.</div>';
   } catch (e) {
     if (seq === searchSeq) $('results').innerHTML = '<div class="msg">Suche gerade nicht erreichbar.</div>';
@@ -368,7 +377,7 @@ $('results').addEventListener('click', e => {
     return;
   }
   const r = found[+li.dataset.i];
-  if (r) setPlace({ name:r.name, lat:+r.latitude.toFixed(4), lon:+r.longitude.toFixed(4) });
+  if (r) setPlace({ name:r.name, lat:+r.lat.toFixed(4), lon:+r.lon.toFixed(4) });
 });
 showPlace();
 
