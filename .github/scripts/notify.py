@@ -18,7 +18,6 @@ from zoneinfo import ZoneInfo
 TOPIC = os.environ["NTFY_TOPIC"]
 PAGE = "https://grobie.github.io/drachenwetter/"   # öffnet sich beim Tippen auf die Nachricht
 # Vorschaubilder wie in der App: Drachen im Wind bzw. am Boden
-ICON = PAGE + "icon-192.png"
 BERLIN = ZoneInfo("Europe/Berlin")
 
 # Schwellen in km/h (10-Minuten-Mittelwind) – wie in der App
@@ -90,11 +89,14 @@ def line(status, win):
 
 
 IMAGE = {"fly": "notify.png", "maybe": "notify-maybe.png", None: "notify-calm.png"}
+ICONS = {"notify.png": "notify-icon.png", "notify-maybe.png": "notify-icon-maybe.png", "notify-calm.png": "notify-icon-calm.png"}
 
 
 def send(title, message, image="notify.png"):
-    msg = {"topic": TOPIC, "title": title, "message": message, "click": PAGE, "icon": ICON,
-           "attach": PAGE + image, "filename": image}
+    # Bild als kleines Symbol statt als Anhang: so zeigt ntfy keine Datei-Knöpfe, nur „Drachenwetter öffnen“
+    msg = {"topic": TOPIC, "title": title, "message": message, "click": PAGE,
+           "icon": PAGE + ICONS[image],
+           "actions": [{"action": "view", "label": "Drachenwetter öffnen", "url": PAGE, "clear": True}]}
     body = json.dumps(msg).encode()
     req = urllib.request.Request("https://ntfy.sh/", data=body, method="POST",
                                  headers={"Content-Type": "application/json"})
