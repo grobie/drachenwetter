@@ -95,10 +95,12 @@
     <rect x="-2000" y="268" width="4400" height="52" fill="url(#ground)"/>
     <line x1="-2000" y1="268" x2="2400" y2="268" stroke="var(--line)" stroke-width="1"/>
     <path id="string" fill="none" stroke="var(--ink)" stroke-opacity=".35" stroke-width=".8"/>
-    <g id="kite" filter="url(#soft)">
+    <g id="tails">
       <path id="tail3" fill="#2b6fd6"/>
       <path id="tail2" fill="#ffcc33"/>
       <path id="tail1" fill="#ff5a4e"/>
+    </g>
+    <g id="kite" filter="url(#soft)">
       <polygon points="0,-62 46,-6 0,0"   fill="url(#gB)"/>
       <polygon points="0,-62 -46,-6 0,0"  fill="url(#gA)"/>
       <polygon points="-46,-6 0,74 0,0"   fill="url(#gC)"/>
@@ -142,25 +144,35 @@ const hhmm = d => d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit
 
 // ---- Szene ----
 // Jeder Zustand: Position, Größe, Neigung, Bewegung des Drachens und des Schweifs
+// Schweif: Richtung (tx, ty) im Bild, Länge, Wellenhöhe, Tempo, Durchhängen – er weht mit dem Wind nach hinten
 const POSE = {
-  fly:     { x:150, y:78,  s:.95,  r:-16, bob:7,  sway:4,  amp:16, spd:3.2, drift:-46, len:100, streaks:3 },
-  maybe:   { x:196, y:150, s:.8,   r:-6,  bob:5,  sway:11, amp:9,  spd:1.6, drift:-22, len:60, streaks:0 },
-  storm:   { x:250, y:160, s:.8,   r:0,   bob:0,  sway:0,  amp:26, spd:7,   drift:60,  len:90,  streaks:6, spin:true, broken:true },
-  calm:    { x:212, y:262, s:1,    r:90,  bob:0,  sway:0,  amp:7,  spd:0,   drift:0,   len:130, streaks:0, ground:true },
-  unknown: { x:212, y:262, s:1,    r:90,  bob:0,  sway:0,  amp:7,  spd:0,   drift:0,   len:130, streaks:0, ground:true }
+  fly:     { x:150, y:78,  s:.95, r:-16, bob:7,  sway:4,  streaks:3, tx:-.96, ty:.28, len:105, amp:9,  spd:5,   droop:14 },
+  maybe:   { x:196, y:150, s:.8,  r:-6,  bob:5,  sway:11, streaks:0, tx:-.45, ty:.89, len:62,  amp:5,  spd:1.8, droop:4 },
+  storm:   { x:250, y:160, s:.8,  r:0,   bob:0,  sway:0,  streaks:6, tx:.88,  ty:.47, len:140, amp:18, bend:.12, spd:9,   droop:0, spin:true, broken:true },
+  calm:    { x:212, y:262, s:1,   r:90,  bob:0,  sway:0,  streaks:0, tx:-1,   ty:0,   len:125, amp:16,  spd:0,   droop:0, ground:true },
+  unknown: { x:212, y:262, s:1,   r:90,  bob:0,  sway:0,  streaks:0, tx:-1,   ty:0,   len:125, amp:16,  spd:0,   droop:0, ground:true }
 };
 let pose = POSE.unknown, state = 'unknown', t0 = performance.now();
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = id => document.getElementById(id);
 
-function ribbon(len, amp, phase, drift, w0, shift) {
-  const N = 28, L = [], R = [];
+// Ein Schweifband im Bild: verlässt den Drachen in Verlängerung seiner Mittelachse (ax, ay)
+// und biegt dann in einem Bogen in die Windrichtung (tx, ty); wird zum Ende hin schmaler
+function ribbon(sx, sy, ax, ay, p, sc, len, phase, w0, off, flat) {
+  const N = 36, L = [], R = [], step = sc * len / N;
+  let x = sx, y = sy;
   for (let i = 0; i <= N; i++) {
     const t = i / N;
-    const y = 74 + t * len;
-    const x = shift + drift * t * t + amp * t * Math.sin(phase - t * 5.5);
-    const w = w0 * (1 - t) + .4;
-    L.push(`${(x - w).toFixed(1)},${y.toFixed(1)}`); R.unshift(`${(x + w).toFixed(1)},${y.toFixed(1)}`);
+    const k = Math.min(1, t / (p.bend || .4)), m = k * k * (3 - 2 * k); // weicher Übergang Achse → Wind
+    let dx = ax + (p.tx - ax) * m, dy = ay + (p.ty - ay) * m + p.droop * t / 40;
+    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    const nx = -dy, ny = dx * (flat ? .45 : 1);                       // quer zur Laufrichtung
+    const wave = off * t + p.amp * t * t * Math.sin(phase - t * 6);   // gebündelt an der Spitze, dann auffächernd
+    const cx = x + nx * wave * sc, cy = y + ny * wave * sc;
+    const w = sc * (w0 * Math.min(1, .35 + t * 5) * (1 - t) + .45) * (flat ? .8 : 1);
+    L.push(`${(cx - nx * w).toFixed(1)},${(cy - ny * w).toFixed(1)}`);
+    R.unshift(`${(cx + nx * w).toFixed(1)},${(cy + ny * w).toFixed(1)}`);
+    x += dx * step; y += dy * step;
   }
   return 'M' + L.join(' L') + ' L' + R.join(' L') + 'Z';
 }
@@ -178,11 +190,17 @@ function frame(now) {
   const sy = p.ground ? .3 : 1;   // am Boden: flach in Perspektive
   $('kite').setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${sc.toFixed(3)} ${(sc * sy).toFixed(3)}) rotate(${rot.toFixed(1)})`);
   $('kite').setAttribute('opacity', op.toFixed(2));
-  const ph = t * p.spd;
-  // drei Schweifbänder wie beim echten Drachen: Rot, Gelb, Blau
-  $('tail1').setAttribute('d', ribbon(p.len, p.amp, ph, p.drift, 2.6, 4));
-  $('tail2').setAttribute('d', ribbon(p.len * .9, p.amp * 1.1, ph + .9, p.drift * .95, 2.4, 0));
-  $('tail3').setAttribute('d', ribbon(p.len * .8, p.amp * 1.2, ph + 1.8, p.drift * .9, 2.2, -4));
+  // drei Schweifbänder wie beim echten Drachen (Rot, Gelb, Blau), befestigt an der unteren Spitze
+  const ar = rot * Math.PI / 180;
+  // Ansatz etwas innerhalb der Spitze – die Bänder liegen hinter dem Drachen, die Verbindung bleibt unsichtbar
+  const tipX = x + sc * (-66 * Math.sin(ar)), tipY = y + sc * sy * (66 * Math.cos(ar));
+  const ph = p.ground ? 1.2 : t * p.spd;
+  let axX = -Math.sin(ar), axY = Math.cos(ar) * sy;                     // Richtung der Drachenachse an der Spitze
+  const al = Math.hypot(axX, axY) || 1; axX /= al; axY /= al;
+  $('tail1').setAttribute('d', ribbon(tipX, tipY, axX, axY, p, sc, p.len, ph, 2.4, 5, p.ground));
+  $('tail2').setAttribute('d', ribbon(tipX, tipY, axX, axY, p, sc, p.len * .92, ph + .8, 2.3, 0, p.ground));
+  $('tail3').setAttribute('d', ribbon(tipX, tipY, axX, axY, p, sc, p.len * .84, ph + 1.6, 2.2, -5, p.ground));
+  $('tails').setAttribute('opacity', op.toFixed(2));
   if (p.broken) {               // nur das lose Leinenende flattert am Rand
     const fx = 330 + Math.sin(t * 6) * 14, fy = 236 + Math.cos(t * 5) * 10;
     $('string').setAttribute('d', `M420 330 Q ${(372 + Math.sin(t * 4) * 12).toFixed(1)} ${(300 + Math.cos(t * 6) * 8).toFixed(1)} ${fx.toFixed(1)} ${fy.toFixed(1)}`);
