@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#cfe6f7">
-<link rel="manifest" href="manifest.webmanifest?v=5">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest?v=6">
+<link rel="icon" href="icon-192.png?v=6">
+<link rel="apple-touch-icon" href="icon-192.png?v=6">
 <title>Drachenwetter</title>
 <style>
   :root {
@@ -96,7 +96,8 @@
     <line x1="-2000" y1="268" x2="2400" y2="268" stroke="var(--line)" stroke-width="1"/>
     <path id="string" fill="none" stroke="var(--ink)" stroke-opacity=".35" stroke-width=".8"/>
     <g id="kite" filter="url(#soft)">
-      <path id="tail2" fill="#ffd2b8"/>
+      <path id="tail3" fill="#2b6fd6"/>
+      <path id="tail2" fill="#ffcc33"/>
       <path id="tail1" fill="#ff5a4e"/>
       <polygon points="0,-62 46,-6 0,0"   fill="url(#gB)"/>
       <polygon points="0,-62 -46,-6 0,0"  fill="url(#gA)"/>
@@ -178,8 +179,10 @@ function frame(now) {
   $('kite').setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${sc.toFixed(3)} ${(sc * sy).toFixed(3)}) rotate(${rot.toFixed(1)})`);
   $('kite').setAttribute('opacity', op.toFixed(2));
   const ph = t * p.spd;
-  $('tail1').setAttribute('d', ribbon(p.len, p.amp, ph, p.drift, 3.2, 0));
-  $('tail2').setAttribute('d', ribbon(p.len * .82, p.amp * 1.15, ph + 1.1, p.drift * .9, 2.2, 5));
+  // drei Schweifbänder wie beim echten Drachen: Rot, Gelb, Blau
+  $('tail1').setAttribute('d', ribbon(p.len, p.amp, ph, p.drift, 2.6, 4));
+  $('tail2').setAttribute('d', ribbon(p.len * .9, p.amp * 1.1, ph + .9, p.drift * .95, 2.4, 0));
+  $('tail3').setAttribute('d', ribbon(p.len * .8, p.amp * 1.2, ph + 1.8, p.drift * .9, 2.2, -4));
   if (p.broken) {               // nur das lose Leinenende flattert am Rand
     const fx = 330 + Math.sin(t * 6) * 14, fy = 236 + Math.cos(t * 5) * 10;
     $('string').setAttribute('d', `M420 330 Q ${(372 + Math.sin(t * 4) * 12).toFixed(1)} ${(300 + Math.cos(t * 6) * 8).toFixed(1)} ${fx.toFixed(1)} ${fy.toFixed(1)}`);
