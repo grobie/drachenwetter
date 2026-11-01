@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 
 TOPIC = os.environ["NTFY_TOPIC"]
 PAGE = "https://grobie.github.io/drachenwetter/"   # öffnet sich beim Tippen auf die Nachricht
-IMAGE = PAGE + "notify.png"                        # Vorschaubild in der Benachrichtigung
+# Vorschaubilder wie in der App: Drachen im Wind bzw. am Boden
 ICON = PAGE + "icon-192.png"
 BERLIN = ZoneInfo("Europe/Berlin")
 
@@ -67,11 +67,9 @@ def best_window(hourly, day, not_before=None):
     return None
 
 
-def send(title, message, image=True):
-    msg = {"topic": TOPIC, "title": title, "message": message, "click": PAGE, "icon": ICON}
-    if image:
-        msg["attach"] = IMAGE
-        msg["filename"] = "drachenwetter.png"
+def send(title, message, image="notify.png"):
+    msg = {"topic": TOPIC, "title": title, "message": message, "click": PAGE, "icon": ICON,
+           "attach": PAGE + image, "filename": image}
     body = json.dumps(msg).encode()
     req = urllib.request.Request("https://ntfy.sh/", data=body, method="POST",
                                  headers={"Content-Type": "application/json"})
@@ -87,7 +85,8 @@ def main():
     if mode == "test":
         win = best_window(hourly, now.date()) or best_window(hourly, now.date() + timedelta(days=1))
         info = f"Nächstes Fenster: {line(win)}" if win else "Heute und morgen kein Drachenwind."
-        send("Test: Benachrichtigungen funktionieren", info)
+        send("Test: Benachrichtigungen funktionieren", info,
+             image="notify.png" if win else "notify-calm.png")
         return
 
     if mode == "weekend":
